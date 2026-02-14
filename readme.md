@@ -10,3 +10,4 @@ The first thing I have done is to shift the prologue and epilogue of annotations
 
 I've obtained the original source from [DenizThatMenace/dlmalloc](https://github.com/DenizThatMenace/dlmalloc). I am using v2.8.6 .
 
+The next thing I did is improving the annotations for readability. Also, I've cut the upper part to malloc.h, as mentioned in the source. This helps in further reducing the source to the main logic only.
