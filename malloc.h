@@ -19,59 +19,12 @@
 #define DLMALLOC_EXPORT extern
 #endif
 
-#ifndef WIN32
-#ifdef _WIN32
-#define WIN32 1
-#endif  /* _WIN32 */
-#ifdef _WIN32_WCE
-#define LACKS_FCNTL_H
-#define WIN32 1
-#endif /* _WIN32_WCE */
-#endif  /* WIN32 */
-#ifdef WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <tchar.h>
-#define HAVE_MMAP 1
-#define HAVE_MORECORE 0
-#define LACKS_UNISTD_H
-#define LACKS_SYS_PARAM_H
-#define LACKS_SYS_MMAN_H
-#define LACKS_STRING_H
-#define LACKS_STRINGS_H
-#define LACKS_SYS_TYPES_H
-#define LACKS_ERRNO_H
-#define LACKS_SCHED_H
-#ifndef MALLOC_FAILURE_ACTION
-#define MALLOC_FAILURE_ACTION
-#endif /* MALLOC_FAILURE_ACTION */
-#ifndef MMAP_CLEARS
-#ifdef _WIN32_WCE /* WINCE reportedly does not clear */
-#define MMAP_CLEARS 0
-#else
-#define MMAP_CLEARS 1
-#endif /* _WIN32_WCE */
-#endif /*MMAP_CLEARS */
-#endif  /* WIN32 */
-
-#if defined(DARWIN) || defined(_DARWIN)
-/* Mac OSX docs advise not to use sbrk; it seems better to use mmap */
-#ifndef HAVE_MORECORE
-#define HAVE_MORECORE 0
-#define HAVE_MMAP 1
-/* OSX allocators provide 16 byte alignment */
-#ifndef MALLOC_ALIGNMENT
-#define MALLOC_ALIGNMENT ((size_t)16U)
-#endif
-#endif  /* HAVE_MORECORE */
-#endif  /* DARWIN */
-
 #ifndef LACKS_SYS_TYPES_H
 #include <sys/types.h>  /* For size_t */
 #endif  /* LACKS_SYS_TYPES_H */
 
 /* The maximum possible size_t value has all bits set */
-#define MAX_SIZE_T           (~(size_t)0)
+#define MAX_SIZE_T    18446744073709551615UL  /* (~(size_t)0) */
 
 #ifndef USE_LOCKS /* ensure true if spin or recursive locks set */
 #define USE_LOCKS  ((defined(USE_SPIN_LOCKS) && USE_SPIN_LOCKS != 0) || \
@@ -96,6 +49,7 @@
 #ifndef ONLY_MSPACES
 #define ONLY_MSPACES 0
 #endif  /* ONLY_MSPACES */
+
 #ifndef MSPACES
 #if ONLY_MSPACES
 #define MSPACES 1
@@ -103,18 +57,23 @@
 #define MSPACES 0
 #endif  /* ONLY_MSPACES */
 #endif  /* MSPACES */
+
 #ifndef MALLOC_ALIGNMENT
-#define MALLOC_ALIGNMENT ((size_t)(2 * sizeof(void *)))
+#define MALLOC_ALIGNMENT    16UL    /* ((size_t)(2 * sizeof(void *))) */
 #endif  /* MALLOC_ALIGNMENT */
+
 #ifndef FOOTERS
 #define FOOTERS 0
 #endif  /* FOOTERS */
+
 #ifndef ABORT
 #define ABORT  abort()
 #endif  /* ABORT */
+
 #ifndef ABORT_ON_ASSERT_FAILURE
 #define ABORT_ON_ASSERT_FAILURE 1
 #endif  /* ABORT_ON_ASSERT_FAILURE */
+
 #ifndef PROCEED_ON_ERROR
 #define PROCEED_ON_ERROR 0
 #endif  /* PROCEED_ON_ERROR */
@@ -122,15 +81,19 @@
 #ifndef INSECURE
 #define INSECURE 0
 #endif  /* INSECURE */
+
 #ifndef MALLOC_INSPECT_ALL
 #define MALLOC_INSPECT_ALL 0
 #endif  /* MALLOC_INSPECT_ALL */
+
 #ifndef HAVE_MMAP
 #define HAVE_MMAP 1
 #endif  /* HAVE_MMAP */
+
 #ifndef MMAP_CLEARS
 #define MMAP_CLEARS 1
 #endif  /* MMAP_CLEARS */
+
 #ifndef HAVE_MREMAP
 #ifdef linux
 #define HAVE_MREMAP 1
@@ -139,9 +102,11 @@
 #define HAVE_MREMAP 0
 #endif  /* linux */
 #endif  /* HAVE_MREMAP */
+
 #ifndef MALLOC_FAILURE_ACTION
 #define MALLOC_FAILURE_ACTION  errno = ENOMEM;
 #endif  /* MALLOC_FAILURE_ACTION */
+
 #ifndef HAVE_MORECORE
 #if ONLY_MSPACES
 #define HAVE_MORECORE 0
@@ -149,6 +114,7 @@
 #define HAVE_MORECORE 1
 #endif  /* ONLY_MSPACES */
 #endif  /* HAVE_MORECORE */
+
 #if !HAVE_MORECORE
 #define MORECORE_CONTIGUOUS 0
 #else   /* !HAVE_MORECORE */
@@ -157,6 +123,7 @@
 #define MORECORE_CONTIGUOUS 1
 #endif  /* MORECORE_CONTIGUOUS */
 #endif  /* HAVE_MORECORE */
+
 #ifndef DEFAULT_GRANULARITY
 #if (MORECORE_CONTIGUOUS || defined(WIN32))
 #define DEFAULT_GRANULARITY (0)  /* 0 means to compute in init_mparams */

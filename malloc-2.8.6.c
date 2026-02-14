@@ -14,15 +14,14 @@
 
 /*------------------------------ internal #includes ---------------------- */
 
-#ifdef _MSC_VER
-#pragma warning( disable : 4146 ) /* no "unsigned" warnings */
-#endif /* _MSC_VER */
 #if !NO_MALLOC_STATS
 #include <stdio.h>       /* for printing in malloc_stats */
 #endif /* NO_MALLOC_STATS */
+
 #ifndef LACKS_ERRNO_H
 #include <errno.h>       /* for MALLOC_FAILURE_ACTION */
 #endif /* LACKS_ERRNO_H */
+
 #ifdef DEBUG
 #if ABORT_ON_ASSERT_FAILURE
 #undef assert
@@ -31,25 +30,28 @@
 #include <assert.h>
 #endif /* ABORT_ON_ASSERT_FAILURE */
 #else  /* DEBUG */
+
 #ifndef assert
 #define assert(x)
 #endif
+
 #define DEBUG 0
 #endif /* DEBUG */
-#if !defined(WIN32) && !defined(LACKS_TIME_H)
-#include <time.h>        /* for magic initialization */
-#endif /* WIN32 */
+
 #ifndef LACKS_STDLIB_H
 #include <stdlib.h>      /* for abort() */
 #endif /* LACKS_STDLIB_H */
+
 #ifndef LACKS_STRING_H
 #include <string.h>      /* for memset etc */
 #endif  /* LACKS_STRING_H */
+
 #if USE_BUILTIN_FFS
 #ifndef LACKS_STRINGS_H
 #include <strings.h>     /* for ffs */
 #endif /* LACKS_STRINGS_H */
 #endif /* USE_BUILTIN_FFS */
+
 #if HAVE_MMAP
 #ifndef LACKS_SYS_MMAN_H
 /* On some versions of linux, mremap decl in mman.h needs __USE_GNU set */
@@ -65,6 +67,7 @@
 #include <fcntl.h>
 #endif /* LACKS_FCNTL_H */
 #endif /* HAVE_MMAP */
+
 #ifndef LACKS_UNISTD_H
 #include <unistd.h>     /* for sbrk, sysconf */
 #else /* LACKS_UNISTD_H */
@@ -110,25 +113,6 @@ LONG __cdecl _InterlockedExchange(LONG volatile *Target, LONG Value);
 #ifndef LOCK_AT_FORK
 #define LOCK_AT_FORK 0
 #endif
-
-/* Declarations for bit scanning on win32 */
-#if defined(_MSC_VER) && _MSC_VER>=1300
-#ifndef BitScanForward /* Try to avoid pulling in WinNT.h */
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-unsigned char _BitScanForward(unsigned long *index, unsigned long mask);
-unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
-#define BitScanForward _BitScanForward
-#define BitScanReverse _BitScanReverse
-#pragma intrinsic(_BitScanForward)
-#pragma intrinsic(_BitScanReverse)
-#endif /* BitScanForward */
-#endif /* defined(_MSC_VER) && _MSC_VER>=1300 */
 
 #ifndef WIN32
 #ifndef malloc_getpagesize
@@ -180,43 +164,44 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 /* ------------------- size_t and alignment properties -------------------- */
 
 /* The byte and bit size of a size_t */
-#define SIZE_T_SIZE         (sizeof(size_t))
-#define SIZE_T_BITSIZE      (sizeof(size_t) << 3)
+#define SIZE_T_SIZE       8UL   /* (sizeof(size_t)) */
+#define SIZE_T_BITSIZE    64UL  /* (sizeof(size_t) << 3) */
 
 /* Some constants coerced to size_t */
 /* Annoying but necessary to avoid errors on some platforms */
-#define SIZE_T_ZERO         ((size_t)0)
-#define SIZE_T_ONE          ((size_t)1)
-#define SIZE_T_TWO          ((size_t)2)
-#define SIZE_T_FOUR         ((size_t)4)
-#define TWO_SIZE_T_SIZES    (SIZE_T_SIZE<<1)
-#define FOUR_SIZE_T_SIZES   (SIZE_T_SIZE<<2)
-#define SIX_SIZE_T_SIZES    (FOUR_SIZE_T_SIZES+TWO_SIZE_T_SIZES)
-#define HALF_MAX_SIZE_T     (MAX_SIZE_T / 2U)
+#define SIZE_T_ZERO         0UL /* ((size_t)0) */
+#define SIZE_T_ONE          1UL /* ((size_t)1) */
+#define SIZE_T_TWO          2UL /* ((size_t)2) */
+#define SIZE_T_FOUR         4UL /* ((size_t)4) */
+#define TWO_SIZE_T_SIZES    16UL /* (SIZE_T_SIZE<<1) */
+#define FOUR_SIZE_T_SIZES   32UL /* (SIZE_T_SIZE<<2) */
+#define SIX_SIZE_T_SIZES    48UL /* (FOUR_SIZE_T_SIZES+TWO_SIZE_T_SIZES) */
+#define HALF_MAX_SIZE_T     18446744073709551615UL/2UL /* (MAX_SIZE_T / 2U) */
 
 /* The bit mask value corresponding to MALLOC_ALIGNMENT */
-#define CHUNK_ALIGN_MASK    (MALLOC_ALIGNMENT - SIZE_T_ONE)
+#define CHUNK_ALIGN_MASK    15UL /* (MALLOC_ALIGNMENT - SIZE_T_ONE) */
 
 /* True if address a has acceptable alignment */
-#define is_aligned(A)       (((size_t)((A)) & (CHUNK_ALIGN_MASK)) == 0)
+// #define is_aligned(A)       (((size_t)((A)) & (CHUNK_ALIGN_MASK)) == 0)
+#define is_aligned(A)       (((size_t)((A)) & 15UL) == 0)
 
 /* the number of bytes to offset an address to align it */
-#define align_offset(A)\
- ((((size_t)(A) & CHUNK_ALIGN_MASK) == 0)? 0 :\
-  ((MALLOC_ALIGNMENT - ((size_t)(A) & CHUNK_ALIGN_MASK)) & CHUNK_ALIGN_MASK))
+// #define align_offset(A)\
+//  ((((size_t)(A) & CHUNK_ALIGN_MASK) == 0)? 0 :\
+//   ((MALLOC_ALIGNMENT - ((size_t)(A) & CHUNK_ALIGN_MASK)) & CHUNK_ALIGN_MASK))
+#define align_offset(A)( ((size_t)(A) & 15UL) == 0 ) ? 0 : ( (16UL - ((size_t)(A) & 15UL) ) & 15UL )
 
 /* -------------------------- MMAP preliminaries ------------------------- */
 
 /*
-   If HAVE_MORECORE or HAVE_MMAP are false, we just define calls and
-   checks to fail so compiler optimizer can delete code rather than
-   using so many "#if"s.
+  If HAVE_MORECORE or HAVE_MMAP are false, we just define calls and checks to 
+  fail so compiler optimizer can delete code rather than using so many "#if"s.
 */
 
 
 /* MORECORE and MMAP must return MFAIL on failure */
-#define MFAIL                ((void*)(MAX_SIZE_T))
-#define CMFAIL               ((char*)(MFAIL)) /* defined for convenience */
+#define MFAIL     ((void*)(MAX_SIZE_T))    /* Another way to write (void*)-1 */
+#define CMFAIL    ((char*)(MFAIL)) /* defined for convenience */
 
 #if HAVE_MMAP
 
@@ -244,107 +229,59 @@ static int dev_zero_fd = -1; /* Cached file descriptor for /dev/zero. */
 
 #define DIRECT_MMAP_DEFAULT(s) MMAP_DEFAULT(s)
 
-#else /* WIN32 */
-
-/* Win32 MMAP via VirtualAlloc */
-static FORCEINLINE void* win32mmap(size_t size) {
-  void* ptr = VirtualAlloc(0, size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-  return (ptr != 0)? ptr: MFAIL;
-}
-
-/* For direct MMAP, use MEM_TOP_DOWN to minimize interference */
-static FORCEINLINE void* win32direct_mmap(size_t size) {
-  void* ptr = VirtualAlloc(0, size, MEM_RESERVE|MEM_COMMIT|MEM_TOP_DOWN,
-                           PAGE_READWRITE);
-  return (ptr != 0)? ptr: MFAIL;
-}
-
-/* This function supports releasing coalesed segments */
-static FORCEINLINE int win32munmap(void* ptr, size_t size) {
-  MEMORY_BASIC_INFORMATION minfo;
-  char* cptr = (char*)ptr;
-  while (size) {
-    if (VirtualQuery(cptr, &minfo, sizeof(minfo)) == 0)
-      return -1;
-    if (minfo.BaseAddress != cptr || minfo.AllocationBase != cptr ||
-        minfo.State != MEM_COMMIT || minfo.RegionSize > size)
-      return -1;
-    if (VirtualFree(cptr, 0, MEM_RELEASE) == 0)
-      return -1;
-    cptr += minfo.RegionSize;
-    size -= minfo.RegionSize;
-  }
-  return 0;
-}
-
-#define MMAP_DEFAULT(s)             win32mmap(s)
-#define MUNMAP_DEFAULT(a, s)        win32munmap((a), (s))
-#define DIRECT_MMAP_DEFAULT(s)      win32direct_mmap(s)
-#endif /* WIN32 */
-#endif /* HAVE_MMAP */
-
-#if HAVE_MREMAP
-#ifndef WIN32
-#define MREMAP_DEFAULT(addr, osz, nsz, mv) mremap((addr), (osz), (nsz), (mv))
 #endif /* WIN32 */
 #endif /* HAVE_MREMAP */
 
-/**
- * Define CALL_MORECORE
- */
+/* Define CALL_MORECORE */
 #if HAVE_MORECORE
-    #ifdef MORECORE
-        #define CALL_MORECORE(S)    MORECORE(S)
-    #else  /* MORECORE */
-        #define CALL_MORECORE(S)    MORECORE_DEFAULT(S)
-    #endif /* MORECORE */
+  #ifdef MORECORE
+    #define CALL_MORECORE(S)    MORECORE(S)
+  #else  /* MORECORE */
+    #define CALL_MORECORE(S)    MORECORE_DEFAULT(S)
+  #endif /* MORECORE */
 #else  /* HAVE_MORECORE */
-    #define CALL_MORECORE(S)        MFAIL
+  #define CALL_MORECORE(S)      MFAIL
 #endif /* HAVE_MORECORE */
 
-/**
- * Define CALL_MMAP/CALL_MUNMAP/CALL_DIRECT_MMAP
- */
+/* Define CALL_MMAP/CALL_MUNMAP/CALL_DIRECT_MMAP */
 #if HAVE_MMAP
-    #define USE_MMAP_BIT            (SIZE_T_ONE)
+  #define USE_MMAP_BIT          1UL /* (SIZE_T_ONE) */
 
-    #ifdef MMAP
-        #define CALL_MMAP(s)        MMAP(s)
-    #else /* MMAP */
-        #define CALL_MMAP(s)        MMAP_DEFAULT(s)
-    #endif /* MMAP */
-    #ifdef MUNMAP
-        #define CALL_MUNMAP(a, s)   MUNMAP((a), (s))
-    #else /* MUNMAP */
-        #define CALL_MUNMAP(a, s)   MUNMAP_DEFAULT((a), (s))
-    #endif /* MUNMAP */
-    #ifdef DIRECT_MMAP
-        #define CALL_DIRECT_MMAP(s) DIRECT_MMAP(s)
-    #else /* DIRECT_MMAP */
-        #define CALL_DIRECT_MMAP(s) DIRECT_MMAP_DEFAULT(s)
-    #endif /* DIRECT_MMAP */
+  #ifdef MMAP
+    #define CALL_MMAP(s)        MMAP(s)
+  #else /* MMAP */
+    #define CALL_MMAP(s)        MMAP_DEFAULT(s)
+  #endif /* MMAP */
+  #ifdef MUNMAP
+    #define CALL_MUNMAP(a, s)   MUNMAP((a), (s))
+  #else /* MUNMAP */
+    #define CALL_MUNMAP(a, s)   MUNMAP_DEFAULT((a), (s))
+  #endif /* MUNMAP */
+  #ifdef DIRECT_MMAP
+    #define CALL_DIRECT_MMAP(s) DIRECT_MMAP(s)
+  #else /* DIRECT_MMAP */
+    #define CALL_DIRECT_MMAP(s) DIRECT_MMAP_DEFAULT(s)
+  #endif /* DIRECT_MMAP */
+
 #else  /* HAVE_MMAP */
-    #define USE_MMAP_BIT            (SIZE_T_ZERO)
-
-    #define MMAP(s)                 MFAIL
-    #define MUNMAP(a, s)            (-1)
-    #define DIRECT_MMAP(s)          MFAIL
-    #define CALL_DIRECT_MMAP(s)     DIRECT_MMAP(s)
-    #define CALL_MMAP(s)            MMAP(s)
-    #define CALL_MUNMAP(a, s)       MUNMAP((a), (s))
+  #define USE_MMAP_BIT            0UL /* (SIZE_T_ZERO) */
+  #define MMAP(s)                 MFAIL
+  #define MUNMAP(a, s)            (-1)
+  #define DIRECT_MMAP(s)          MFAIL
+  #define CALL_DIRECT_MMAP(s)     DIRECT_MMAP(s)
+  #define CALL_MMAP(s)            MMAP(s)
+  #define CALL_MUNMAP(a, s)       MUNMAP((a), (s))
 #endif /* HAVE_MMAP */
 
-/**
- * Define CALL_MREMAP
- */
+/* Define CALL_MREMAP */
 #if HAVE_MMAP && HAVE_MREMAP
-    #ifdef MREMAP
-        #define CALL_MREMAP(addr, osz, nsz, mv) MREMAP((addr), (osz), (nsz), (mv))
-    #else /* MREMAP */
-        #define CALL_MREMAP(addr, osz, nsz, mv) MREMAP_DEFAULT((addr), (osz), (nsz), (mv))
-    #endif /* MREMAP */
+  #ifdef MREMAP
+    #define CALL_MREMAP(addr, osz, nsz, mv) MREMAP((addr), (osz), (nsz), (mv))
+  #else /* MREMAP */
+    #define CALL_MREMAP(addr, osz, nsz, mv) MREMAP_DEFAULT((addr), (osz), (nsz), (mv))
+  #endif /* MREMAP */
 #else  /* HAVE_MMAP && HAVE_MREMAP */
-    #define CALL_MREMAP(addr, osz, nsz, mv)     MFAIL
+  #define CALL_MREMAP(addr, osz, nsz, mv)     MFAIL
 #endif /* HAVE_MMAP && HAVE_MREMAP */
 
 /* mstate bit set if continguous morecore disabled or failed */
