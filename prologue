@@ -1,0 +1,97 @@
+Quickstart
+
+  This library is all in one file to simplify the most common usage:
+  ftp it, compile it (-O3), and link it into another program. All of
+  the compile-time options default to reasonable values for use on
+  most platforms.  You might later want to step through various
+  compile-time and dynamic tuning options.
+
+  For convenience, an include file for code using this malloc is at:
+     ftp://gee.cs.oswego.edu/pub/misc/malloc-2.8.6.h
+  You don't really need this .h file unless you call functions not
+  defined in your system include files.  The .h file contains only the
+  excerpts from this file needed for using this malloc on ANSI C/C++
+  systems, so long as you haven't changed compile-time options about
+  naming and tuning parameters.  If you do, then you can create your
+  own malloc.h that does include all settings by cutting at the point
+  indicated below. Note that you may already by default be using a C
+  library containing a malloc that is based on some version of this
+  malloc (for example in linux). You might still want to use the one
+  in this file to customize settings or to avoid overheads associated
+  with library versions.
+
+Overview of algorithms
+
+  This is not the fastest, most space-conserving, most portable, or
+  most tunable malloc ever written. However it is among the fastest
+  while also being among the most space-conserving, portable and
+  tunable.  Consistent balance across these factors results in a good
+  general-purpose allocator for malloc-intensive programs.
+
+  In most ways, this malloc is a best-fit allocator. Generally, it
+  chooses the best-fitting existing chunk for a request, with ties
+  broken in approximately least-recently-used order. (This strategy
+  normally maintains low fragmentation.) However, for requests less
+  than 256bytes, it deviates from best-fit when there is not an
+  exactly fitting available chunk by preferring to use space adjacent
+  to that used for the previous small request, as well as by breaking
+  ties in approximately most-recently-used order. (These enhance
+  locality of series of small allocations.)  And for very large requests
+  (>= 256Kb by default), it relies on system memory mapping
+  facilities, if supported.  (This helps avoid carrying around and
+  possibly fragmenting memory used only for large chunks.)
+
+  All operations (except malloc_stats and mallinfo) have execution
+  times that are bounded by a constant factor of the number of bits in
+  a size_t, not counting any clearing in calloc or copying in realloc,
+  or actions surrounding MORECORE and MMAP that have times
+  proportional to the number of non-contiguous regions returned by
+  system allocation routines, which is often just 1. In real-time
+  applications, you can optionally suppress segment traversals using
+  NO_SEGMENT_TRAVERSAL, which assures bounded execution even when
+  system allocators return non-contiguous spaces, at the typical
+  expense of carrying around more memory and increased fragmentation.
+
+  The implementation is not very modular and seriously overuses
+  macros. Perhaps someday all C compilers will do as good a job
+  inlining modular code as can now be done by brute-force expansion,
+  but now, enough of them seem not to.
+
+  Some compilers issue a lot of warnings about code that is
+  dead/unreachable only on some platforms, and also about intentional
+  uses of negation on unsigned types. All known cases of each can be
+  ignored.
+
+  For a longer but out of date high-level description, see
+     http://gee.cs.oswego.edu/dl/html/malloc.html
+
+MSPACES
+  If MSPACES is defined, then in addition to malloc, free, etc.,
+  this file also defines mspace_malloc, mspace_free, etc. These
+  are versions of malloc routines that take an "mspace" argument
+  obtained using create_mspace, to control all internal bookkeeping.
+  If ONLY_MSPACES is defined, only these versions are compiled.
+  So if you would like to use this allocator for only some allocations,
+  and your system malloc for others, you can compile with
+  ONLY_MSPACES and then do something like...
+    static mspace mymspace = create_mspace(0,0); // for example
+    #define mymalloc(bytes)  mspace_malloc(mymspace, bytes)
+
+  (Note: If you only need one instance of an mspace, you can instead
+  use "USE_DL_PREFIX" to relabel the global malloc.)
+
+  You can similarly create thread-local allocators by storing
+  mspaces as thread-locals. For example:
+    static __thread mspace tlms = 0;
+    void*  tlmalloc(size_t bytes) {
+      if (tlms == 0) tlms = create_mspace(0, 0);
+      return mspace_malloc(tlms, bytes);
+    }
+    void  tlfree(void* mem) { mspace_free(tlms, mem); }
+
+  Unless FOOTERS is defined, each mspace is completely independent.
+  You cannot allocate from one and free to another (although
+  conformance is only weakly checked, so usage errors are not always
+  caught). If FOOTERS is defined, then each chunk carries around a tag
+  indicating its originating mspace, and frees are directed to their
+  originating spaces. Normally, this requires use of locks.

@@ -1,0 +1,107 @@
+Vital statistics:
+
+  Supported pointer/size_t representation:       4 or 8 bytes
+       size_t MUST be an unsigned type of the same width as
+       pointers. (If you are using an ancient system that declares
+       size_t as a signed type, or need it to be a different width
+       than pointers, you can use a previous release of this malloc
+       (e.g. 2.7.2) supporting these.)
+
+  Alignment:                                     8 bytes (minimum)
+       This suffices for nearly all current machines and C compilers.
+       However, you can define MALLOC_ALIGNMENT to be wider than this
+       if necessary (up to 128bytes), at the expense of using more space.
+
+  Minimum overhead per allocated chunk:   4 or  8 bytes (if 4byte sizes)
+                                          8 or 16 bytes (if 8byte sizes)
+       Each malloced chunk has a hidden word of overhead holding size
+       and status information, and additional cross-check word
+       if FOOTERS is defined.
+
+  Minimum allocated size: 4-byte ptrs:  16 bytes    (including overhead)
+                          8-byte ptrs:  32 bytes    (including overhead)
+
+       Even a request for zero bytes (i.e., malloc(0)) returns a
+       pointer to something of the minimum allocatable size.
+       The maximum overhead wastage (i.e., number of extra bytes
+       allocated than were requested in malloc) is less than or equal
+       to the minimum size, except for requests >= mmap_threshold that
+       are serviced via mmap(), where the worst case wastage is about
+       32 bytes plus the remainder from a system page (the minimal
+       mmap unit); typically 4096 or 8192 bytes.
+
+  Security: static-safe; optionally more or less
+       The "security" of malloc refers to the ability of malicious
+       code to accentuate the effects of errors (for example, freeing
+       space that is not currently malloc'ed or overwriting past the
+       ends of chunks) in code that calls malloc.  This malloc
+       guarantees not to modify any memory locations below the base of
+       heap, i.e., static variables, even in the presence of usage
+       errors.  The routines additionally detect most improper frees
+       and reallocs.  All this holds as long as the static bookkeeping
+       for malloc itself is not corrupted by some other means.  This
+       is only one aspect of security -- these checks do not, and
+       cannot, detect all possible programming errors.
+
+       If FOOTERS is defined nonzero, then each allocated chunk
+       carries an additional check word to verify that it was malloced
+       from its space.  These check words are the same within each
+       execution of a program using malloc, but differ across
+       executions, so externally crafted fake chunks cannot be
+       freed. This improves security by rejecting frees/reallocs that
+       could corrupt heap memory, in addition to the checks preventing
+       writes to statics that are always on.  This may further improve
+       security at the expense of time and space overhead.  (Note that
+       FOOTERS may also be worth using with MSPACES.)
+
+       By default detected errors cause the program to abort (calling
+       "abort()"). You can override this to instead proceed past
+       errors by defining PROCEED_ON_ERROR.  In this case, a bad free
+       has no effect, and a malloc that encounters a bad address
+       caused by user overwrites will ignore the bad address by
+       dropping pointers and indices to all known memory. This may
+       be appropriate for programs that should continue if at all
+       possible in the face of programming errors, although they may
+       run out of memory because dropped memory is never reclaimed.
+
+       If you don't like either of these options, you can define
+       CORRUPTION_ERROR_ACTION and USAGE_ERROR_ACTION to do anything
+       else. And if if you are sure that your program using malloc has
+       no errors or vulnerabilities, you can define INSECURE to 1,
+       which might (or might not) provide a small performance improvement.
+
+       It is also possible to limit the maximum total allocatable
+       space, using malloc_set_footprint_limit. This is not
+       designed as a security feature in itself (calls to set limits
+       are not screened or privileged), but may be useful as one
+       aspect of a secure implementation.
+
+  Thread-safety: NOT thread-safe unless USE_LOCKS defined non-zero
+       When USE_LOCKS is defined, each public call to malloc, free,
+       etc is surrounded with a lock. By default, this uses a plain
+       pthread mutex, win32 critical section, or a spin-lock if if
+       available for the platform and not disabled by setting
+       USE_SPIN_LOCKS=0.  However, if USE_RECURSIVE_LOCKS is defined,
+       recursive versions are used instead (which are not required for
+       base functionality but may be needed in layered extensions).
+       Using a global lock is not especially fast, and can be a major
+       bottleneck.  It is designed only to provide minimal protection
+       in concurrent environments, and to provide a basis for
+       extensions.  If you are using malloc in a concurrent program,
+       consider instead using nedmalloc
+       (http://www.nedprod.com/programs/portable/nedmalloc/) or
+       ptmalloc (See http://www.malloc.de), which are derived from
+       versions of this malloc.
+
+  System requirements: Any combination of MORECORE and/or MMAP/MUNMAP
+       This malloc can use unix sbrk or any emulation (invoked using
+       the CALL_MORECORE macro) and/or mmap/munmap or any emulation
+       (invoked using CALL_MMAP/CALL_MUNMAP) to get and release system
+       memory.  On most unix systems, it tends to work best if both
+       MORECORE and MMAP are enabled.  On Win32, it uses emulations
+       based on VirtualAlloc. It also uses common C library functions
+       like memset.
+
+  Compliance: I believe it is compliant with the Single Unix Specification
+       (See http://www.unix.org). Also SVID/XPG, ANSI C, and probably
+       others as well.
