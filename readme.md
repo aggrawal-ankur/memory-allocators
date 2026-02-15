@@ -13,3 +13,9 @@ I've obtained the original source from [DenizThatMenace/dlmalloc](https://github
 The next thing I did is improving the annotations for readability. Also, I've cut the upper part to malloc.h, as mentioned in the source. This helps in further reducing the source to the main logic only.
 
 The next thing I am doing is macro resolution for x64-linux as the architecture.
+
+---
+
+***February 15, 2026***
+
+Continuing my macro-resolution journey, I've encountered the "chunk representation" annotations, which I have shifted into a separate file. I've formatted them a little, but I have some other ideas to improve them as per my understanding of chunks.
