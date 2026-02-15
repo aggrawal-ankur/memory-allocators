@@ -1,0 +1,31 @@
+/* ----------------------- Runtime Check Support ------------------------- */
+
+/*
+  For security, the main invariant is that malloc/free/etc never
+  writes to a static address other than malloc_state, unless static
+  malloc_state itself has been corrupted, which cannot occur via
+  malloc (because of these checks).
+
+  In essence this means that we believe all pointers, sizes, maps etc 
+  held in malloc_state, but check all of those linked or offsetted 
+  from other embedded data structures.
+
+  These checks are interspersed with main code in a way that tends to 
+  minimize their run-time cost.
+
+  When FOOTERS is defined, in addition to range checking, we also
+  verify footer fields of inuse chunks, which can be used guarantee
+  that the mstate controlling malloc/free is intact.
+  - This is a streamlined version of the approach described by "William 
+    Robertson" et al in "Run-time Detection of Heap-based Overflows" 
+    LISA'03 http://www.usenix.org/events/lisa03/tech/robertson.html
+  - The footer of an inuse chunk holds the xor of its mstate and a 
+    random seed, that is checked upon calls to free() and realloc(). This
+    is (probabalistically) unguessable from outside the program, but can 
+    be computed by any code successfully malloc'ing any chunk, so does not
+    itself provide protection against code that has already broken security 
+    through some other means.
+  - Unlike Robertson et al, we always dynamically check addresses of all 
+    offset chunks (previous, next, etc). This turns out to be cheaper than 
+    relying on hashes.
+*/

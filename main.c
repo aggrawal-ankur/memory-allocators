@@ -9,6 +9,15 @@ struct malloc_chunk {
 
 typedef struct malloc_chunk  mchunk;
 
+typedef unsigned int flag_t;
+
+struct malloc_segment {
+  char*                  base;     /* base address */
+  size_t                 size;     /* allocated size */
+  struct malloc_segment* next;     /* ptr to next segment */
+  flag_t                sflags;    /* mmap and extern flag */
+};
+
 int main(void){
   printf("sizeof(size_t): %d\n", sizeof(size_t));
   printf("sizeof(size_t) << 3: %d\n", sizeof(size_t) << 3);
@@ -21,4 +30,5 @@ int main(void){
   printf("~(size_t)0: %zu\n", ~(size_t)0);
   printf("(size_t)(2 * sizeof(void *)): %d\n", (size_t)(2 * sizeof(void *)));
   printf("sizeof(mchunk): %d\n", sizeof(mchunk));
+  printf("sizeof(struct malloc_segment): %d\n", sizeof(struct malloc_segment));
 }
