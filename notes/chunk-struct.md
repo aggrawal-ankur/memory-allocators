@@ -424,4 +424,4 @@ You may ask what do we even get by freeing r, it is 32 bytes in size and all tha
   - Once these 32-bytes chunk are reallocated, fd/bk becomes garbage again. If the chunk previous to them is not free anymore, the prev_foot is garbage again. 16 bytes of memory is always available.
   - It is about interpretation.
 
-Now we have two free chunks lying together, we can perform backward coalescing here. Bytes 64-71 represent the size of the previous free chunk, which is 48 bytes.
+Now we have two free chunks lying together, we can perform backward coalescing here and make a large chunk of size (32+48) 80 bytes.
