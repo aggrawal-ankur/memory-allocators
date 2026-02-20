@@ -190,9 +190,10 @@ LONG __cdecl _InterlockedExchange(LONG volatile *Target, LONG Value);
 //  ((((size_t)(A) & CHUNK_ALIGN_MASK) == 0)? 0 :\
 //   ((MALLOC_ALIGNMENT - ((size_t)(A) & CHUNK_ALIGN_MASK)) & CHUNK_ALIGN_MASK))
 #define align_offset(A)    ( \
-  ( (size_t)(A) & 15UL ) == 0 ) \
+  ( ( (size_t)(A) & 15UL ) == 0 ) \
   ? 0 \
-  : ( (16UL - ((size_t)(A) & 15UL) ) & 15UL )
+  : ( (16UL - ((size_t)(A) & 15UL) ) & 15UL ) \
+)
 
 /* -------------------------- MMAP preliminaries ------------------------- */
 
@@ -674,7 +675,7 @@ typedef unsigned int flag_t;           /* The type of various bit flag sets */
 
 /* Get the internal overhead associated with chunk p */
 // #define overhead_for(p)    (is_mmapped(p)? MMAP_CHUNK_OVERHEAD : CHUNK_OVERHEAD)
-#define overhead_for(p)    (is_mmapped(p)? 16UL : 8UL)
+#define overhead_for(p)    (is_mmapped(p) ? 16UL : 8UL)
 
 /* Return true if malloced space is not necessarily cleared */
 #if MMAP_CLEARS
@@ -818,12 +819,11 @@ static struct malloc_state _gm_;
 #define use_noncontiguous(M)  (M->mflags &  USE_NONCONTIGUOUS_BIT)
 #define disable_contiguous(M) (M->mflags |= USE_NONCONTIGUOUS_BIT)
 
-#define set_lock(M,L) \
-  ( \
-    M->mflags = (L) ? \
-   (M->mflags | USE_LOCK_BIT) : \
-   (M->mflags & ~USE_LOCK_BIT)  \
-  )
+#define set_lock(M, L)    ( \
+   M->mflags = L ? \
+  (M->mflags | USE_LOCK_BIT) : \
+  (M->mflags & ~USE_LOCK_BIT)  \
+)
 
 /* page-align a size */
 // #define page_align(S)    (((S) + (mparams.page_size - SIZE_T_ONE)) & ~(mparams.page_size - SIZE_T_ONE))
@@ -945,19 +945,19 @@ static void reset_on_error(mstate m);
 
 #if ! DEBUG
 
-#define check_free_chunk(M,P)
-#define check_inuse_chunk(M,P)
-#define check_malloced_chunk(M,P,N)
-#define check_mmapped_chunk(M,P)
+#define check_free_chunk(M, P)
+#define check_inuse_chunk(M, P)
+#define check_malloced_chunk(M, P, N)
+#define check_mmapped_chunk(M, P)
 #define check_malloc_state(M)
-#define check_top_chunk(M,P)
+#define check_top_chunk(M, P)
 
 #else /* DEBUG */
-#define check_free_chunk(M,P)       do_check_free_chunk(M,P)
-#define check_inuse_chunk(M,P)      do_check_inuse_chunk(M,P)
-#define check_top_chunk(M,P)        do_check_top_chunk(M,P)
+#define check_free_chunk(M, P)       do_check_free_chunk(M, P)
+#define check_inuse_chunk(M, P)      do_check_inuse_chunk(M, P)
+#define check_top_chunk(M, P)        do_check_top_chunk(M, P)
 #define check_malloced_chunk(M,P,N) do_check_malloced_chunk(M,P,N)
-#define check_mmapped_chunk(M,P)    do_check_mmapped_chunk(M,P)
+#define check_mmapped_chunk(M, P)    do_check_mmapped_chunk(M, P)
 #define check_malloc_state(M)       do_check_malloc_state(M)
 
 static void   do_check_any_chunk(mstate m, mchunkptr p);
@@ -987,86 +987,87 @@ static size_t traverse_and_check(mstate m);
 
 /* assign tree index for size S to variable I. Use x86 asm if possible  */
 #if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
-#define compute_tree_index(S, I)\
-{\
-  unsigned int X = S >> TREEBIN_SHIFT;\
-  if (X == 0)\
-    I = 0;\
-  else if (X > 0xFFFF)\
-    I = NTREEBINS-1;\
-  else {\
+#define compute_tree_index(S, I) \
+{ \
+  unsigned int X = S >> TREEBIN_SHIFT; \
+  if (X == 0) \
+    I = 0;    \
+  else if (X > 0xFFFF) \
+    I = NTREEBINS-1;   \
+  else { \
     unsigned int K = (unsigned) sizeof(X)*__CHAR_BIT__ - 1 - (unsigned) __builtin_clz(X); \
-    I =  (bindex_t)((K << 1) + ((S >> (K + (TREEBIN_SHIFT-1)) & 1)));\
-  }\
+    I =  (bindex_t)((K << 1) + ((S >> (K + (TREEBIN_SHIFT-1)) & 1))); \
+  } \
 }
 
 #elif defined (__INTEL_COMPILER)
-#define compute_tree_index(S, I)\
-{\
-  size_t X = S >> TREEBIN_SHIFT;\
-  if (X == 0)\
-    I = 0;\
-  else if (X > 0xFFFF)\
-    I = NTREEBINS-1;\
-  else {\
+#define compute_tree_index(S, I) \
+{ \
+  size_t X = S >> TREEBIN_SHIFT; \
+  if (X == 0) \
+    I = 0; \
+  else if (X > 0xFFFF) \
+    I = NTREEBINS-1;   \
+  else { \
     unsigned int K = _bit_scan_reverse (X); \
-    I =  (bindex_t)((K << 1) + ((S >> (K + (TREEBIN_SHIFT-1)) & 1)));\
+    I =  (bindex_t)((K << 1) + ((S >> (K + (TREEBIN_SHIFT-1)) & 1))); \
   }\
 }
 
 #elif defined(_MSC_VER) && _MSC_VER>=1300
-#define compute_tree_index(S, I)\
-{\
-  size_t X = S >> TREEBIN_SHIFT;\
-  if (X == 0)\
-    I = 0;\
-  else if (X > 0xFFFF)\
-    I = NTREEBINS-1;\
-  else {\
-    unsigned int K;\
-    _BitScanReverse((DWORD *) &K, (DWORD) X);\
-    I =  (bindex_t)((K << 1) + ((S >> (K + (TREEBIN_SHIFT-1)) & 1)));\
-  }\
+#define compute_tree_index(S, I) \
+{ \
+  size_t X = S >> TREEBIN_SHIFT; \
+  if (X == 0) \
+    I = 0;    \
+  else if (X > 0xFFFF) \
+    I = NTREEBINS-1;   \
+  else { \
+    unsigned int K; \
+    _BitScanReverse((DWORD *) &K, (DWORD) X); \
+    I =  (bindex_t)((K << 1) + ((S >> (K + (TREEBIN_SHIFT-1)) & 1))); \
+  } \
 }
 
 #else /* GNUC */
-#define compute_tree_index(S, I)\
-{\
-  size_t X = S >> TREEBIN_SHIFT;\
-  if (X == 0)\
-    I = 0;\
-  else if (X > 0xFFFF)\
-    I = NTREEBINS-1;\
-  else {\
-    unsigned int Y = (unsigned int)X;\
-    unsigned int N = ((Y - 0x100) >> 16) & 8;\
-    unsigned int K = (((Y <<= N) - 0x1000) >> 16) & 4;\
-    N += K;\
-    N += K = (((Y <<= K) - 0x4000) >> 16) & 2;\
-    K = 14 - N + ((Y <<= K) >> 15);\
-    I = (K << 1) + ((S >> (K + (TREEBIN_SHIFT-1)) & 1));\
-  }\
+#define compute_tree_index(S, I) \
+{ \
+  size_t X = S >> TREEBIN_SHIFT; \
+  if (X == 0) \
+    I = 0;    \
+  else if (X > 0xFFFF) \
+    I = NTREEBINS-1;   \
+  else { \
+    unsigned int Y = (unsigned int)X; \
+    unsigned int N = ((Y - 0x100) >> 16) & 8; \
+    unsigned int K = (((Y <<= N) - 0x1000) >> 16) & 4; \
+    N += K; \
+    N += K = (((Y <<= K) - 0x4000) >> 16) & 2; \
+    K = 14 - N + ((Y <<= K) >> 15); \
+    I = (K << 1) + ((S >> (K + (TREEBIN_SHIFT-1)) & 1)); \
+  } \
 }
 #endif /* GNUC */
 
 /* Bit representing maximum resolved size in a treebin at i */
 #define bit_for_tree_index(i)    ( \
-  (i == NTREEBINS-1) \
-    ? (SIZE_T_BITSIZE-1) \
-    : ( (i >> 1) + TREEBIN_SHIFT - 2 ) \
+  (i == NTREEBINS-1)   \
+  ? (SIZE_T_BITSIZE-1) \
+  : ( (i >> 1) + TREEBIN_SHIFT - 2 ) \
 )
 
 /* Shift placing maximum resolved bit in a treebin at i as sign bit */
 #define leftshift_for_tree_index(i)    ( \
   (i == NTREEBINS-1) \
-    ? 0 \
-    : ( (SIZE_T_BITSIZE - SIZE_T_ONE) - ( (i >> 1) + TREEBIN_SHIFT - 2 ) ) \
+  ? 0 \
+  : ( (SIZE_T_BITSIZE - SIZE_T_ONE) - ( (i >> 1) + TREEBIN_SHIFT - 2 ) ) \
 )
 
 /* The size of the smallest chunk held in bin with index i */
-#define minsize_for_tree_index(i) \
-   ( (SIZE_T_ONE << ( (i >> 1) + TREEBIN_SHIFT) ) |  \
-   ( ( (size_t)(i & SIZE_T_ONE) ) << ( (i >> 1) + TREEBIN_SHIFT - 1 ) ) )
+#define minsize_for_tree_index(i)    ( \
+  (SIZE_T_ONE << ( (i >> 1) + TREEBIN_SHIFT) ) |  \
+  ( ( (size_t)(i & SIZE_T_ONE) ) << ( (i >> 1) + TREEBIN_SHIFT - 1 ) )  \
+)
 
 
 /* ------------------------ Operations on bin maps ----------------------- */
@@ -1075,19 +1076,19 @@ static size_t traverse_and_check(mstate m);
 #define idx2bit(i)    ((binmap_t)(1) << i)
 
 /* Mark/Clear bits with given index */
-#define mark_smallmap(M,i)      (M->smallmap |=  idx2bit(i))
-#define clear_smallmap(M,i)     (M->smallmap &= ~idx2bit(i))
-#define smallmap_is_marked(M,i) (M->smallmap &   idx2bit(i))
+#define mark_smallmap(M, i)      (M->smallmap |=  idx2bit(i))
+#define clear_smallmap(M, i)     (M->smallmap &= ~idx2bit(i))
+#define smallmap_is_marked(M, i) (M->smallmap &   idx2bit(i))
 
-#define mark_treemap(M,i)       (M->treemap  |=  idx2bit(i))
-#define clear_treemap(M,i)      (M->treemap  &= ~idx2bit(i))
-#define treemap_is_marked(M,i)  (M->treemap  &   idx2bit(i))
+#define mark_treemap(M, i)       (M->treemap  |=  idx2bit(i))
+#define clear_treemap(M, i)      (M->treemap  &= ~idx2bit(i))
+#define treemap_is_marked(M, i)  (M->treemap  &   idx2bit(i))
 
 /* isolate the least set bit of a bitmap */
 #define least_bit(x)    (x & -x)
 
 /* mask with all bits to left of least bit of x on */
-#define left_bits(x)    ( (x<<1) | -(x<<1) )
+#define left_bits(x)    ( (x << 1) | -(x << 1) )
 
 /* mask with all bits to left of or equal to least bit of x on */
 #define same_or_left_bits(x)    (x | -x)
@@ -1095,43 +1096,43 @@ static size_t traverse_and_check(mstate m);
 /* index corresponding to given bit. Use x86 asm if possible */
 
 #if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
-#define compute_bit2idx(X, I)\
-{\
-  unsigned int J;\
-  J = __builtin_ctz(X); \
-  I = (bindex_t)J;\
+#define compute_bit2idx(X, I) \
+{ \
+  unsigned int J; \
+  J = __builtin_ctz(X);  \
+  I = (bindex_t)J; \
 }
 
 #elif defined (__INTEL_COMPILER)
-#define compute_bit2idx(X, I)\
-{\
-  unsigned int J;\
-  J = _bit_scan_forward (X); \
-  I = (bindex_t)J;\
+#define compute_bit2idx(X, I) \
+{ \
+  unsigned int J; \
+  J = _bit_scan_forward (X);  \
+  I = (bindex_t)J; \
 }
 
 #elif defined(_MSC_VER) && _MSC_VER>=1300
-#define compute_bit2idx(X, I)\
-{\
-  unsigned int J;\
-  _BitScanForward((DWORD *) &J, X);\
-  I = (bindex_t)J;\
+#define compute_bit2idx(X, I) \
+{ \
+  unsigned int J; \
+  _BitScanForward((DWORD *) &J, X); \
+  I = (bindex_t)J; \
 }
 
 #elif USE_BUILTIN_FFS
 #define compute_bit2idx(X, I) I = ffs(X)-1
 
 #else
-#define compute_bit2idx(X, I)\
-{\
-  unsigned int Y = X - 1;\
-  unsigned int K = Y >> (16-4) & 16;\
-  unsigned int N = K;        Y >>= K;\
-  N += K = Y >> (8-3) &  8;  Y >>= K;\
-  N += K = Y >> (4-2) &  4;  Y >>= K;\
-  N += K = Y >> (2-1) &  2;  Y >>= K;\
-  N += K = Y >> (1-0) &  1;  Y >>= K;\
-  I = (bindex_t)(N + Y);\
+#define compute_bit2idx(X, I) \
+{ \
+  unsigned int Y = X - 1; \
+  unsigned int K = Y >> (16-4) & 16;  \
+  unsigned int N = K;        Y >>= K; \
+  N += K = Y >> (8-3) &  8;  Y >>= K; \
+  N += K = Y >> (4-2) &  4;  Y >>= K; \
+  N += K = Y >> (2-1) &  2;  Y >>= K; \
+  N += K = Y >> (1-0) &  1;  Y >>= K; \
+  I = (bindex_t)(N + Y); \
 }
 #endif /* GNUC */
 
@@ -1141,7 +1142,7 @@ static size_t traverse_and_check(mstate m);
 #if !INSECURE
 
 /* Check if address a is at least as high as any from MORECORE or MMAP */
-#define ok_address(M, a) ((char*)(a) >= (M)->least_addr)
+#define ok_address(M, a) ((char*)(a) >= M->least_addr)
 
 /* Check if address of next chunk n is higher than base chunk p */
 #define ok_next(p, n)    ((char*)(p) < (char*)(n))
@@ -1161,7 +1162,7 @@ static size_t traverse_and_check(mstate m);
 
 #if (FOOTERS && !INSECURE)
 /* Check if (alleged) mstate m has expected magic field */
-#define ok_magic(M)      ((M)->magic == mparams.magic)
+#define ok_magic(M)      (M->magic == mparams.magic)
 #else  /* (FOOTERS && !INSECURE) */
 #define ok_magic(M)      (1)
 #endif /* (FOOTERS && !INSECURE) */
@@ -1188,12 +1189,12 @@ static size_t traverse_and_check(mstate m);
 /* Set cinuse bit and pinuse bit of next chunk */
 #define set_inuse(M, p, s) \
   (p->head = ((p->head & PINUSE_BIT)|s|CINUSE_BIT), \
-  ((mchunkptr)(((char*)(p)) + s))->head |= PINUSE_BIT)
+  ( (mchunkptr)((char*)(p) + s) )->head |= PINUSE_BIT)
 
 /* Set cinuse and pinuse of this chunk and pinuse of next chunk */
-#define set_inuse_and_pinuse(M, p, s)\
+#define set_inuse_and_pinuse(M, p, s)   \
   (p->head = (s|PINUSE_BIT|CINUSE_BIT), \
-  ((mchunkptr)(((char*)(p)) + s))->head |= PINUSE_BIT)
+  ( (mchunkptr)((char*)(p) + s) )->head |= PINUSE_BIT)
 
 /* Set size, cinuse and pinuse bit of this chunk */
 #define set_size_and_pinuse_of_inuse_chunk(M, p, s)    (p->head = (s|PINUSE_BIT|CINUSE_BIT))
@@ -1202,11 +1203,10 @@ static size_t traverse_and_check(mstate m);
 
 /* Set foot of inuse chunk to be xor of mstate and seed */
 #define mark_inuse_foot(M, p, s) \
-  (((mchunkptr)((char*)(p) + s))->prev_foot = ((size_t)(M) ^ mparams.magic))
+  ( ((mchunkptr)((char*)(p) + s) )->prev_foot = ( (size_t)(M) ^ mparams.magic) )
 
 #define get_mstate_for(p) \
-  ((mstate)(((mchunkptr)((char*)(p) + \
-    (chunksize(p))))->prev_foot ^ mparams.magic))
+  ( (mstate)( ((mchunkptr)( (char*)(p) + chunksize(p) ))->prev_foot ^ mparams.magic ) )
 
 #define set_inuse(M, p, s) \
   ((p)->head = (((p)->head & PINUSE_BIT)|s|CINUSE_BIT),  \
@@ -1346,7 +1346,7 @@ static int change_mparam(int param_number, int value){
       else
         return 0;
 
-      case M_MMAP_THRESHOLD:
+    case M_MMAP_THRESHOLD:
       mparams.mmap_threshold = val;
       return 1;
 
@@ -1360,16 +1360,16 @@ static int change_mparam(int param_number, int value){
 
 /* Check properties of any chunk, whether free, inuse, mmapped etc  */
 static void do_check_any_chunk(mstate m, mchunkptr p) {
-  assert((is_aligned(chunk2mem(p))) || (p->head == FENCEPOST_HEAD));
+  assert( ( is_aligned(chunk2mem(p)) ) || (p->head == FENCEPOST_HEAD));
   assert(ok_address(m, p));
 }
 
 /* Check properties of top chunk */
 static void do_check_top_chunk(mstate m, mchunkptr p) {
   msegmentptr sp = segment_holding(m, (char*)p);
-  size_t  sz = p->head & ~INUSE_BITS; /* third-lowest bit can be set! */
+  size_t  sz = p->head & ~INUSE_BITS;    /* third-lowest bit can be set! */
   assert(sp != 0);
-  assert((is_aligned(chunk2mem(p))) || (p->head == FENCEPOST_HEAD));
+  assert( ( is_aligned(chunk2mem(p)) ) || (p->head == FENCEPOST_HEAD));
   assert(ok_address(m, p));
   assert(sz == m->topsize);
   assert(sz > 0);
@@ -1384,7 +1384,7 @@ static void do_check_mmapped_chunk(mstate m, mchunkptr p) {
   size_t len = (sz + (p->prev_foot) + MMAP_FOOT_PAD);
   assert(is_mmapped(p));
   assert(use_mmap(m));
-  assert((is_aligned(chunk2mem(p))) || (p->head == FENCEPOST_HEAD));
+  assert( (is_aligned(chunk2mem(p)) ) || (p->head == FENCEPOST_HEAD));
   assert(ok_address(m, p));
   assert(!is_small(sz));
   assert((len & (mparams.page_size-SIZE_T_ONE)) == 0);
@@ -1417,7 +1417,7 @@ static void do_check_free_chunk(mstate m, mchunkptr p) {
       assert(is_aligned(chunk2mem(p)));
       assert(next->prev_foot == sz);
       assert(pinuse(p));
-      assert (next == m->top || is_inuse(next));
+      assert(next == m->top || is_inuse(next));
       assert(p->fd->bk == p);
       assert(p->bk->fd == p);
     }
@@ -1451,7 +1451,7 @@ static void do_check_tree(mstate m, tchunkptr t) {
   assert(tindex == idx);
   assert(tsize >= MIN_LARGE_SIZE);
   assert(tsize >= minsize_for_tree_index(idx));
-  assert((idx == NTREEBINS-1) || (tsize < minsize_for_tree_index((idx+1))));
+  assert( (idx == NTREEBINS-1) || (tsize < minsize_for_tree_index(idx+1)) );
 
   do { /* traverse through chain of same-sized nodes */
     do_check_any_chunk(m, ((mchunkptr)u));
@@ -1469,9 +1469,12 @@ static void do_check_tree(mstate m, tchunkptr t) {
       assert(head == 0); /* only one node on chain has parent */
       head = u;
       assert(u->parent != u);
-      assert (u->parent->child[0] == u ||
-              u->parent->child[1] == u ||
-              *((tbinptr*)(u->parent)) == u);
+      assert(
+        u->parent->child[0] == u ||
+        u->parent->child[1] == u ||
+        *((tbinptr*)(u->parent)) == u
+      );
+
       if (u->child[0] != 0) {
         assert(u->child[0]->parent == u);
         assert(u->child[0] != u);
@@ -1513,11 +1516,14 @@ static void do_check_smallbin(mstate m, bindex_t i) {
     for (; p != b; p = p->bk) {
       size_t size = chunksize(p);
       mchunkptr q;
+
       /* each chunk claims to be free */
       do_check_free_chunk(m, p);
       /* chunk belongs in bin */
       assert(small_index(size) == i);
+
       assert(p->bk == b || chunksize(p->bk) == chunksize(p));
+
       /* chunk is followed by an inuse chunk */
       q = next_chunk(p);
       if (q->head != FENCEPOST_HEAD)
@@ -1572,8 +1578,9 @@ static size_t traverse_and_check(mstate m) {
       mchunkptr q = align_as_chunk(s->base);
       mchunkptr lastq = 0;
       assert(pinuse(q));
-      while (segment_holds(s, q) &&
-             q != m->top && q->head != FENCEPOST_HEAD) {
+      while (
+        segment_holds(s, q) && (q != m->top) && (q->head != FENCEPOST_HEAD)
+      ){
         sum += chunksize(q);
         if (is_inuse(q)) {
           assert(!bin_find(m, q));
@@ -1598,22 +1605,25 @@ static size_t traverse_and_check(mstate m) {
 static void do_check_malloc_state(mstate m) {
   bindex_t i;
   size_t total;
+
   /* check bins */
   for (i = 0; i < NSMALLBINS; ++i)
     do_check_smallbin(m, i);
   for (i = 0; i < NTREEBINS; ++i)
     do_check_treebin(m, i);
 
-  if (m->dvsize != 0) { /* check dv chunk */
+  /* check dv chunk */
+  if (m->dvsize != 0) {
     do_check_any_chunk(m, m->dv);
     assert(m->dvsize == chunksize(m->dv));
     assert(m->dvsize >= MIN_CHUNK_SIZE);
     assert(bin_find(m, m->dv) == 0);
   }
 
-  if (m->top != 0) {   /* check top chunk */
+  /* check top chunk */
+  if (m->top != 0) {
     do_check_top_chunk(m, m->top);
-    /*assert(m->topsize == chunksize(m->top)); redundant */
+    /* assert(m->topsize == chunksize(m->top)); redundant */
     assert(m->topsize > 0);
     assert(bin_find(m, m->top) == 0);
   }
@@ -1635,14 +1645,17 @@ static struct mallinfo internal_mallinfo(mstate m){
     check_malloc_state(m);
 
     if (is_initialized(m)) {
-      size_t nfree = SIZE_T_ONE; /* top always free */
-      size_t mfree = m->topsize + TOP_FOOT_SIZE;
-      size_t sum = mfree;
+      size_t nfree  = SIZE_T_ONE;  /* top always free */
+      size_t mfree  = m->topsize + TOP_FOOT_SIZE;
+      size_t sum    = mfree;
       msegmentptr s = &m->seg;
+
       while (s != 0) {
         mchunkptr q = align_as_chunk(s->base);
-        while (segment_holds(s, q) &&
-               q != m->top && q->head != FENCEPOST_HEAD) {
+
+        while (
+          segment_holds(s, q) && (q != m->top) && (q->head != FENCEPOST_HEAD)
+        ){
           size_t sz = chunksize(q);
           sum += sz;
           if (!is_inuse(q)){
@@ -1651,6 +1664,7 @@ static struct mallinfo internal_mallinfo(mstate m){
           }
           q = next_chunk(q);
         }
+
         s = s->next;
       }
 
@@ -1675,24 +1689,28 @@ static void internal_malloc_stats(mstate m){
 
   if (!PREACTION(m)){
     size_t maxfp = 0;
-    size_t fp = 0;
-    size_t used = 0;
+    size_t fp    = 0;
+    size_t used  = 0;
 
     check_malloc_state(m);
     if (is_initialized(m)){
       msegmentptr s = &m->seg;
       maxfp = m->max_footprint;
-      fp = m->footprint;
-      used = fp - (m->topsize + TOP_FOOT_SIZE);
+      fp    = m->footprint;
+      used  = fp - (m->topsize + TOP_FOOT_SIZE);
 
       while (s != 0){
         mchunkptr q = align_as_chunk(s->base);
-        while (segment_holds(s, q) &&
-               q != m->top && q->head != FENCEPOST_HEAD){
-          if (!is_inuse(q))
+
+        while (
+          segment_holds(s, q) && (q != m->top) && (q->head != FENCEPOST_HEAD)
+        ){
+          if (!is_inuse(q)){
             used -= chunksize(q);
+          }
           q = next_chunk(q);
         }
+
         s = s->next;
       }
     }
@@ -1716,7 +1734,7 @@ static void internal_malloc_stats(mstate m){
 
 /* Link a free chunk into a smallbin  */
 #define insert_small_chunk(M, P, S){       \
-  bindex_t I  = small_index(S);            \
+  bindex_t  I = small_index(S);            \
   mchunkptr B = smallbin_at(M, I);         \
   mchunkptr F = B;                         \
   assert(S >= MIN_CHUNK_SIZE);             \
@@ -1935,12 +1953,18 @@ static void internal_malloc_stats(mstate m){
 /* Relays to large vs small bin operations */
 
 #define insert_chunk(M, P, S) \
-  if (is_small(S)) insert_small_chunk(M, P, S) \
-  else { tchunkptr TP = (tchunkptr)(P); insert_large_chunk(M, TP, S); }
+  if (is_small(S))    insert_small_chunk(M, P, S) \
+  else { \
+    tchunkptr TP = (tchunkptr)(P); \
+    insert_large_chunk(M, TP, S); \
+  }
 
 #define unlink_chunk(M, P, S) \
-  if (is_small(S)) unlink_small_chunk(M, P, S) \
-  else { tchunkptr TP = (tchunkptr)(P); unlink_large_chunk(M, TP); }
+  if (is_small(S))    unlink_small_chunk(M, P, S) \
+  else { \
+    tchunkptr TP = (tchunkptr)(P); \
+    unlink_large_chunk(M, TP); \
+  }
 
 
 /* Relays to internal calls to malloc/free from realloc, memalign etc */
@@ -1950,10 +1974,10 @@ static void internal_malloc_stats(mstate m){
 #define internal_free(m, mem) mspace_free(m,mem);
 #else /* ONLY_MSPACES */
 #if MSPACES
-#define internal_malloc(m, b)\
-  ((m == gm)? dlmalloc(b) : mspace_malloc(m, b))
-#define internal_free(m, mem)\
-   if (m == gm) dlfree(mem); else mspace_free(m,mem);
+#define internal_malloc(m, b)    ((m == gm) ? dlmalloc(b) : mspace_malloc(m, b))
+#define internal_free(m, mem) \
+  if (m == gm) dlfree(mem); \
+  else mspace_free(m,mem);
 #else /* MSPACES */
 #define internal_malloc(m, b) dlmalloc(b)
 #define internal_free(m, mem) dlfree(mem)
@@ -1978,7 +2002,9 @@ static void* mmap_alloc(mstate m, size_t nb) {
     if (fp <= m->footprint || fp > m->footprint_limit)
       return 0;
   }
-  if (mmsize > nb) {     /* Check for wrap around 0 */
+
+  /* Check for wrap around 0 */
+  if (mmsize > nb) {
     char* mm = (char*)(CALL_DIRECT_MMAP(mmsize));
     if (mm != CMFAIL) {
       size_t offset = align_offset(chunk2mem(mm));
@@ -1994,8 +2020,10 @@ static void* mmap_alloc(mstate m, size_t nb) {
         m->least_addr = mm;
       if ((m->footprint += mmsize) > m->max_footprint)
         m->max_footprint = m->footprint;
+
       assert(is_aligned(chunk2mem(p)));
       check_mmapped_chunk(m, p);
+
       return chunk2mem(p);
     }
   }
@@ -2006,18 +2034,23 @@ static void* mmap_alloc(mstate m, size_t nb) {
 static mchunkptr mmap_resize(mstate m, mchunkptr oldp, size_t nb, int flags) {
   size_t oldsize = chunksize(oldp);
   (void)flags; /* placate people compiling -Wunused */
+
   if (is_small(nb)) /* Can't shrink mmap regions below small size */
     return 0;
+
   /* Keep old chunk if big enough but not too big */
-  if (oldsize >= nb + SIZE_T_SIZE &&
-      (oldsize - nb) <= (mparams.granularity << 1))
+  if (
+    oldsize >= nb + SIZE_T_SIZE &&
+    (oldsize - nb) <= (mparams.granularity << 1)
+  )
     return oldp;
+
   else {
     size_t offset = oldp->prev_foot;
     size_t oldmmsize = oldsize + offset + MMAP_FOOT_PAD;
     size_t newmmsize = mmap_align(nb + SIX_SIZE_T_SIZES + CHUNK_ALIGN_MASK);
-    char* cp = (char*)CALL_MREMAP((char*)oldp - offset,
-                                  oldmmsize, newmmsize, flags);
+
+    char* cp = (char*)CALL_MREMAP((char*)oldp - offset, oldmmsize, newmmsize, flags);
     if (cp != CMFAIL) {
       mchunkptr newp = (mchunkptr)(cp + offset);
       size_t psize = newmmsize - offset - MMAP_FOOT_PAD;
@@ -2028,8 +2061,10 @@ static mchunkptr mmap_resize(mstate m, mchunkptr oldp, size_t nb, int flags) {
 
       if (cp < m->least_addr)
         m->least_addr = cp;
+
       if ((m->footprint += newmmsize - oldmmsize) > m->max_footprint)
         m->max_footprint = m->footprint;
+
       check_mmapped_chunk(m, newp);
       return newp;
     }
@@ -2050,6 +2085,7 @@ static void init_top(mstate m, mchunkptr p, size_t psize) {
   m->top = p;
   m->topsize = psize;
   p->head = psize | PINUSE_BIT;
+
   /* set size of fake trailing chunk holding overhead space only once */
   chunk_plus_offset(p, psize)->head = TOP_FOOT_SIZE;
   m->trim_check = mparams.trim_threshold; /* reset on each update */
@@ -2234,65 +2270,83 @@ static void* sys_alloc(mstate m, size_t nb) {
   if (MORECORE_CONTIGUOUS && !use_noncontiguous(m)) {
     char* br = CMFAIL;
     size_t ssize = asize; /* sbrk call size */
-    msegmentptr ss = (m->top == 0)? 0 : segment_holding(m, (char*)m->top);
+    msegmentptr ss = (m->top == 0) ? 0 : segment_holding(m, (char*)m->top);
     ACQUIRE_MALLOC_GLOBAL_LOCK();
 
-    if (ss == 0) {  /* First time through or recovery */
+    /* First time through or recovery */
+    if (ss == 0) {
       char* base = (char*)CALL_MORECORE(0);
       if (base != CMFAIL) {
         size_t fp;
+
         /* Adjust to end on a page boundary */
         if (!is_page_aligned(base))
           ssize += (page_align((size_t)base) - (size_t)base);
-        fp = m->footprint + ssize; /* recheck limits */
-        if (ssize > nb && ssize < HALF_MAX_SIZE_T &&
-            (m->footprint_limit == 0 ||
-             (fp > m->footprint && fp <= m->footprint_limit)) &&
-            (br = (char*)(CALL_MORECORE(ssize))) == base) {
+
+        /* recheck limits */
+        fp = m->footprint + ssize;
+        if (
+          (ssize > nb) && 
+          (ssize < HALF_MAX_SIZE_T) &&
+          (m->footprint_limit == 0 || ( (fp > m->footprint) && (fp <= m->footprint_limit) )) &&
+          ( ( br = (char*)(CALL_MORECORE(ssize)) ) == base )
+        ){
           tbase = base;
           tsize = ssize;
         }
       }
     }
+
     else {
       /* Subtract out existing available top space from MORECORE request. */
       ssize = granularity_align(nb - m->topsize + SYS_ALLOC_PADDING);
+
       /* Use mem here only if it did continuously extend old space */
-      if (ssize < HALF_MAX_SIZE_T &&
-          (br = (char*)(CALL_MORECORE(ssize))) == ss->base+ss->size) {
+      if (
+        ssize < HALF_MAX_SIZE_T &&
+        (br = (char*)(CALL_MORECORE(ssize))) == (ss->base+ss->size)
+      ){
         tbase = br;
         tsize = ssize;
       }
     }
 
-    if (tbase == CMFAIL) {    /* Cope with partial failure */
-      if (br != CMFAIL) {    /* Try to use/extend the space we did get */
-        if (ssize < HALF_MAX_SIZE_T &&
-            ssize < nb + SYS_ALLOC_PADDING) {
+    /* Cope with partial failure */
+    if (tbase == CMFAIL) {
+      /* Try to use/extend the space we did get */
+      if (br != CMFAIL) {
+        if (ssize < HALF_MAX_SIZE_T && ssize < (nb + SYS_ALLOC_PADDING)) {
           size_t esize = granularity_align(nb + SYS_ALLOC_PADDING - ssize);
           if (esize < HALF_MAX_SIZE_T) {
             char* end = (char*)CALL_MORECORE(esize);
             if (end != CMFAIL)
               ssize += esize;
-            else {            /* Can't use; try to release */
+
+            /* Can't use; try to release */
+            else {
               (void) CALL_MORECORE(-ssize);
               br = CMFAIL;
             }
           }
         }
       }
-      if (br != CMFAIL) {    /* Use the space we did get */
+
+      /* Use the space we did get */
+      if (br != CMFAIL) {
         tbase = br;
         tsize = ssize;
       }
+
+      /* Don't try contiguous path in the future */
       else
-        disable_contiguous(m); /* Don't try contiguous path in the future */
+        disable_contiguous(m);
     }
 
     RELEASE_MALLOC_GLOBAL_LOCK();
   }
 
-  if (HAVE_MMAP && tbase == CMFAIL) {  /* Try MMAP */
+  /* Try MMAP */
+  if (HAVE_MMAP && tbase == CMFAIL) {
     char* mp = (char*)(CALL_MMAP(asize));
     if (mp != CMFAIL) {
       tbase = mp;
@@ -2301,13 +2355,16 @@ static void* sys_alloc(mstate m, size_t nb) {
     }
   }
 
-  if (HAVE_MORECORE && tbase == CMFAIL) { /* Try noncontiguous MORECORE */
+  /* Try noncontiguous MORECORE */
+  if (HAVE_MORECORE && tbase == CMFAIL) {
     if (asize < HALF_MAX_SIZE_T) {
       char* br = CMFAIL;
       char* end = CMFAIL;
       ACQUIRE_MALLOC_GLOBAL_LOCK();
+
       br = (char*)(CALL_MORECORE(asize));
       end = (char*)(CALL_MORECORE(0));
+
       RELEASE_MALLOC_GLOBAL_LOCK();
       if (br != CMFAIL && end != CMFAIL && br < end) {
         size_t ssize = end - br;
@@ -2324,20 +2381,24 @@ static void* sys_alloc(mstate m, size_t nb) {
     if ((m->footprint += tsize) > m->max_footprint)
       m->max_footprint = m->footprint;
 
-    if (!is_initialized(m)) { /* first-time initialization */
+    /* first-time initialization */
+    if (!is_initialized(m)) {
       if (m->least_addr == 0 || tbase < m->least_addr)
         m->least_addr = tbase;
+
       m->seg.base = tbase;
       m->seg.size = tsize;
       m->seg.sflags = mmap_flag;
       m->magic = mparams.magic;
       m->release_checks = MAX_RELEASE_CHECK_RATE;
       init_bins(m);
+
 #if !ONLY_MSPACES
       if (is_global(m))
         init_top(m, (mchunkptr)tbase, tsize - TOP_FOOT_SIZE);
       else
 #endif
+
       {
         /* Offset top by embedded malloc_state */
         mchunkptr mn = next_chunk(mem2chunk(m));
@@ -2348,36 +2409,48 @@ static void* sys_alloc(mstate m, size_t nb) {
     else {
       /* Try to merge with an existing segment */
       msegmentptr sp = &m->seg;
+
       /* Only consider most recent segment if traversal suppressed */
       while (sp != 0 && tbase != sp->base + sp->size)
         sp = (NO_SEGMENT_TRAVERSAL) ? 0 : sp->next;
-      if (sp != 0 &&
-          !is_extern_segment(sp) &&
-          (sp->sflags & USE_MMAP_BIT) == mmap_flag &&
-          segment_holds(sp, m->top)) { /* append */
+
+      /* append */
+      if (
+        sp != 0 &&
+        !is_extern_segment(sp) &&
+        (sp->sflags & USE_MMAP_BIT) == mmap_flag &&
+        segment_holds(sp, m->top)
+      ){
         sp->size += tsize;
         init_top(m, m->top, m->topsize + tsize);
       }
+
       else {
         if (tbase < m->least_addr)
           m->least_addr = tbase;
+
         sp = &m->seg;
         while (sp != 0 && sp->base != tbase + tsize)
           sp = (NO_SEGMENT_TRAVERSAL) ? 0 : sp->next;
-        if (sp != 0 &&
-            !is_extern_segment(sp) &&
-            (sp->sflags & USE_MMAP_BIT) == mmap_flag) {
+
+        if (
+          sp != 0 &&
+          !is_extern_segment(sp) &&
+          (sp->sflags & USE_MMAP_BIT) == mmap_flag
+        ){
           char* oldbase = sp->base;
           sp->base = tbase;
           sp->size += tsize;
           return prepend_alloc(m, tbase, oldbase, nb);
         }
+
         else
           add_segment(m, tbase, tsize, mmap_flag);
       }
     }
 
-    if (nb < m->topsize) { /* Allocate from new or extended top space */
+    /* Allocate from new or extended top space */
+    if (nb < m->topsize) {
       size_t rsize = m->topsize -= nb;
       mchunkptr p = m->top;
       mchunkptr r = m->top = chunk_plus_offset(p, nb);
@@ -2401,18 +2474,22 @@ static size_t release_unused_segments(mstate m) {
   int nsegs = 0;
   msegmentptr pred = &m->seg;
   msegmentptr sp = pred->next;
+
   while (sp != 0) {
     char* base = sp->base;
     size_t size = sp->size;
     msegmentptr next = sp->next;
     ++nsegs;
+
     if (is_mmapped_segment(sp) && !is_extern_segment(sp)) {
       mchunkptr p = align_as_chunk(base);
       size_t psize = chunksize(p);
+
       /* Can unmap if first chunk holds entire segment and not pinned */
       if (!is_inuse(p) && (char*)p + psize >= base + size - TOP_FOOT_SIZE) {
         tchunkptr tp = (tchunkptr)p;
         assert(segment_holds(sp, (char*)sp));
+
         if (p == m->dv) {
           m->dv = 0;
           m->dvsize = 0;
@@ -2420,59 +2497,74 @@ static size_t release_unused_segments(mstate m) {
         else {
           unlink_large_chunk(m, tp);
         }
+
         if (CALL_MUNMAP(base, size) == 0) {
           released += size;
           m->footprint -= size;
+
           /* unlink obsoleted record */
           sp = pred;
           sp->next = next;
         }
-        else { /* back out if cannot unmap */
+        /* back out if cannot unmap */
+        else {
           insert_large_chunk(m, tp, psize);
         }
       }
     }
-    if (NO_SEGMENT_TRAVERSAL) /* scan only first segment */
-      break;
+
+    /* scan only first segment */
+    if (NO_SEGMENT_TRAVERSAL)  break;
+
     pred = sp;
     sp = next;
   }
+
   /* Reset check counter */
-  m->release_checks = (((size_t) nsegs > (size_t) MAX_RELEASE_CHECK_RATE)?
-                       (size_t) nsegs : (size_t) MAX_RELEASE_CHECK_RATE);
+  m->release_checks = (
+    ((size_t) nsegs > (size_t)MAX_RELEASE_CHECK_RATE)
+    ? (size_t) nsegs 
+    : (size_t) MAX_RELEASE_CHECK_RATE
+  );
+
   return released;
 }
 
 static int sys_trim(mstate m, size_t pad) {
   size_t released = 0;
   ensure_initialization();
+
   if (pad < MAX_REQUEST && is_initialized(m)) {
-    pad += TOP_FOOT_SIZE; /* ensure enough room for segment overhead */
+    pad += TOP_FOOT_SIZE;  /* ensure enough room for segment overhead */
 
     if (m->topsize > pad) {
       /* Shrink top space in granularity-size units, keeping at least one */
       size_t unit = mparams.granularity;
-      size_t extra = ((m->topsize - pad + (unit - SIZE_T_ONE)) / unit -
-                      SIZE_T_ONE) * unit;
+      size_t extra = ((m->topsize - pad + (unit - SIZE_T_ONE)) / unit - SIZE_T_ONE) * unit;
       msegmentptr sp = segment_holding(m, (char*)m->top);
 
       if (!is_extern_segment(sp)) {
         if (is_mmapped_segment(sp)) {
-          if (HAVE_MMAP &&
-              sp->size >= extra &&
-              !has_segment_link(m, sp)) { /* can't shrink if pinned */
+          /* can't shrink if pinned */
+          if (HAVE_MMAP && sp->size >= extra && !has_segment_link(m, sp)){
             size_t newsize = sp->size - extra;
             (void)newsize; /* placate people compiling -Wunused-variable */
+
             /* Prefer mremap, fall back to munmap */
-            if ((CALL_MREMAP(sp->base, sp->size, newsize, 0) != MFAIL) ||
-                (CALL_MUNMAP(sp->base + newsize, extra) == 0)) {
+            if (
+              (CALL_MREMAP(sp->base, sp->size, newsize, 0) != MFAIL) ||
+              (CALL_MUNMAP(sp->base + newsize, extra) == 0)
+            ){
               released = extra;
             }
           }
         }
+
         else if (HAVE_MORECORE) {
-          if (extra >= HALF_MAX_SIZE_T) /* Avoid wrapping negative */
+          /* Avoid wrapping negative */
+          if (extra >= HALF_MAX_SIZE_T)
             extra = (HALF_MAX_SIZE_T) + SIZE_T_ONE - unit;
+
           ACQUIRE_MALLOC_GLOBAL_LOCK();
           {
             /* Make sure end of memory is where we last set it. */
@@ -2505,7 +2597,7 @@ static int sys_trim(mstate m, size_t pad) {
       m->trim_check = MAX_SIZE_T;
   }
 
-  return (released != 0)? 1 : 0;
+  return (released != 0) ? 1 : 0;
 }
 
 /* Consolidate and bin a chunk. Differs from exported versions
@@ -2588,10 +2680,12 @@ static void* tmalloc_large(mstate m, size_t nb) {
   tchunkptr t;
   bindex_t idx;
   compute_tree_index(nb, idx);
+
   if ((t = *treebin_at(m, idx)) != 0) {
     /* Traverse tree for this bin looking for node with size == nb */
     size_t sizebits = nb << leftshift_for_tree_index(idx);
     tchunkptr rst = 0;  /* The deepest untaken right subtree */
+
     for (;;) {
       tchunkptr rt;
       size_t trem = chunksize(t) - nb;
@@ -2600,6 +2694,7 @@ static void* tmalloc_large(mstate m, size_t nb) {
         if ((rsize = trem) == 0)
           break;
       }
+
       rt = t->child[1];
       t = t->child[(sizebits >> (SIZE_T_BITSIZE-SIZE_T_ONE)) & 1];
       if (rt != 0 && rt != t)
@@ -2611,6 +2706,7 @@ static void* tmalloc_large(mstate m, size_t nb) {
       sizebits <<= 1;
     }
   }
+
   if (t == 0 && v == 0) { /* set t to root of next non-empty treebin */
     binmap_t leftbits = left_bits(idx2bit(idx)) & m->treemap;
     if (leftbits != 0) {
@@ -2704,16 +2800,16 @@ void* dlmalloc(size_t bytes){
       3. If one exists, split the smallest available chunk in a bin,
          saving remainder in dv.
       4. If it is big enough, use the top chunk.
-      5. If available, get memory from system and use it
-    
+      5. If available, get memory from system and use it.
+
     For a large request:
       1. Find the smallest available binned chunk that fits, and use it
          if it is better fitting than dv chunk, splitting if necessary.
       2. If better fitting than any binned chunk, use the dv chunk.
       3. If it is big enough, use the top chunk.
       4. If request size >= mmap threshold, try to directly mmap this chunk.
-      5. If available, get memory from system and use it
-    
+      5. If available, get memory from system and use it.
+
     The ugly goto's here ensure that postaction occurs along all paths.
   */
 
@@ -2733,7 +2829,8 @@ void* dlmalloc(size_t bytes){
       idx = small_index(nb);
       smallbits = gm->smallmap >> idx;
 
-      if ((smallbits & 0x3U) != 0) { /* Remainderless fit to a smallbin. */
+      /* Remainderless fit to a smallbin. */
+      if ((smallbits & 0x3U) != 0) {
         mchunkptr b, p;
         idx += ~smallbits & 1;       /* Uses next bin if idx empty */
         b = smallbin_at(gm, idx);
@@ -2759,6 +2856,7 @@ void* dlmalloc(size_t bytes){
           assert(chunksize(p) == small_index2size(i));
           unlink_first_small_chunk(gm, b, p, i);
           rsize = small_index2size(i) - nb;
+
           /* Fit here cannot be remainderless if 4byte sizes */
           if (SIZE_T_SIZE != 4 && rsize < MIN_CHUNK_SIZE)
             set_inuse_and_pinuse(gm, p, small_index2size(i));
@@ -2768,6 +2866,7 @@ void* dlmalloc(size_t bytes){
             set_size_and_pinuse_of_free_chunk(r, rsize);
             replace_dv(gm, r, rsize);
           }
+
           mem = chunk2mem(p);
           check_malloced_chunk(gm, mem, nb);
           goto postaction;
@@ -2779,8 +2878,9 @@ void* dlmalloc(size_t bytes){
         }
       }
     }
+
     else if (bytes >= MAX_REQUEST)
-      nb = MAX_SIZE_T; /* Too big to allocate. Force failure (in sys alloc) */
+      nb = MAX_SIZE_T;  /* Too big to allocate. Force failure (in sys alloc) */
     else {
       nb = pad_request(bytes);
       if (gm->treemap != 0 && (mem = tmalloc_large(gm, nb)) != 0) {
@@ -2792,24 +2892,30 @@ void* dlmalloc(size_t bytes){
     if (nb <= gm->dvsize) {
       size_t rsize = gm->dvsize - nb;
       mchunkptr p = gm->dv;
-      if (rsize >= MIN_CHUNK_SIZE) { /* split dv */
+
+      /* split dv */
+      if (rsize >= MIN_CHUNK_SIZE) {
         mchunkptr r = gm->dv = chunk_plus_offset(p, nb);
         gm->dvsize = rsize;
         set_size_and_pinuse_of_free_chunk(r, rsize);
         set_size_and_pinuse_of_inuse_chunk(gm, p, nb);
       }
-      else { /* exhaust dv */
+
+      /* exhaust dv */
+      else {
         size_t dvs = gm->dvsize;
         gm->dvsize = 0;
         gm->dv = 0;
         set_inuse_and_pinuse(gm, p, dvs);
       }
+
       mem = chunk2mem(p);
       check_malloced_chunk(gm, mem, nb);
       goto postaction;
     }
 
-    else if (nb < gm->topsize) { /* Split top */
+    /* Split top */
+    else if (nb < gm->topsize) {
       size_t rsize = gm->topsize -= nb;
       mchunkptr p = gm->top;
       mchunkptr r = gm->top = chunk_plus_offset(p, nb);
@@ -2842,6 +2948,7 @@ void dlfree(void* mem) {
 
   if (mem != 0) {
     mchunkptr p  = mem2chunk(mem);
+
 #if FOOTERS
     mstate fm = get_mstate_for(p);
     if (!ok_magic(fm)) {
@@ -2851,13 +2958,17 @@ void dlfree(void* mem) {
 #else /* FOOTERS */
 #define fm gm
 #endif /* FOOTERS */
+
     if (!PREACTION(fm)) {
       check_inuse_chunk(fm, p);
+
       if (RTCHECK(ok_address(fm, p) && ok_inuse(p))) {
         size_t psize = chunksize(p);
         mchunkptr next = chunk_plus_offset(p, psize);
+
         if (!pinuse(p)) {
           size_t prevsize = p->prev_foot;
+
           if (is_mmapped(p)) {
             psize += prevsize + MMAP_FOOT_PAD;
             if (CALL_MUNMAP((char*)p - prevsize, psize) == 0)
@@ -2868,6 +2979,7 @@ void dlfree(void* mem) {
             mchunkptr prev = chunk_minus_offset(p, prevsize);
             psize += prevsize;
             p = prev;
+
             if (RTCHECK(ok_address(fm, prev))) { /* consolidate backward */
               if (p != fm->dv) {
                 unlink_chunk(fm, p, prevsize);
@@ -2889,6 +3001,7 @@ void dlfree(void* mem) {
               size_t tsize = fm->topsize += psize;
               fm->top = p;
               p->head = tsize | PINUSE_BIT;
+
               if (p == fm->dv) {
                 fm->dv = 0;
                 fm->dvsize = 0;
